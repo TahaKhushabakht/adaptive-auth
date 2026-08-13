@@ -28,7 +28,11 @@ func main() {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 		defer db.Close()
-	srv := &apiServer{db: db}
+	dummy, err := hashPassword("a-password-nobody-will-ever-use")
+	if err != nil {
+		log.Fatalf("Failed to hash dummy password: %v", err)
+	}
+	srv := &apiServer{db: db, dummyHash: dummy}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthzHandler)

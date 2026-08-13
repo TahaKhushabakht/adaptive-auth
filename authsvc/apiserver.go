@@ -13,6 +13,7 @@ import (
 
 type apiServer struct {
 	db *sql.DB
+	dummyHash string
 }
 
 func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +63,9 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	 req.Email).Scan(&id, &storedHash)
 	 
 	if errors.Is(err, sql.ErrNoRows) {
+		
+		_, _ = verifyPassword(s.dummyHash, req.Password)
+
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
@@ -69,7 +73,6 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to query user", http.StatusInternalServerError)
 		return
 	}
-
 
 	ok, err := verifyPassword(storedHash, req.Password)
 

@@ -33,6 +33,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthzHandler)
 	mux.HandleFunc("POST /register", srv.registerHandler)
+	mux.HandleFunc("POST /login", srv.loginHandler)
 	if err := http.ListenAndServe(":8081", withLogging(mux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

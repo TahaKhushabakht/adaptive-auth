@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 )
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
@@ -10,11 +11,20 @@ func healthzHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+func withLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		log.Printf("Received request: %s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+		log.Printf("Request completed in %f seconds", time.Since(start).Seconds())
+
+	})
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthzHandler)
-	if err := http.ListenAndServe(":8080", mux); err != nil {
+	if err := http.ListenAndServe(":8080", withLogging(mux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
-
 }

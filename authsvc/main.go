@@ -28,10 +28,11 @@ func main() {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 		defer db.Close()
+	srv := &apiServer{db: db}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthzHandler)
-	mux.HandleFunc("POST /register", registerHandler)
+	mux.HandleFunc("POST /register", srv.registerHandler)
 	if err := http.ListenAndServe(":8081", withLogging(mux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

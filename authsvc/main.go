@@ -22,9 +22,16 @@ func withLogging(next http.Handler) http.Handler {
 }
 
 func main() {
+
+		db, err := openDatabase("adaptive_auth.db")
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+		defer db.Close()
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthzHandler)
-	if err := http.ListenAndServe(":8080", withLogging(mux)); err != nil {
+	if err := http.ListenAndServe(":8081", withLogging(mux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

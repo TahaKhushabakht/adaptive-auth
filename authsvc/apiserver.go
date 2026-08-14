@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -115,4 +116,43 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("logged in: " + req.Email))
+}
+
+type contextKey string
+
+const userIDKey contextKey = "userID"
+
+func (s *apiServer) requireAuth(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("session_token")
+		if err != nil {
+			http.Error(w, "not authenticated", http.StatusUnauthorized)
+			return
+		}
+		var userID, expiresAtStr string
+		err = s.db.QueryRow("SELECT user_id, expires_at FROM sessions WHERE token_hash = ?",
+			hashToken(cookie.Value)).Scan(&userID, &expiresAtStr)
+		if err != nil {
+			http.Error(w, "not authenticated", http.StatusUnauthorized)
+			return
+		}
+
+		expiresAt, err := time.Parse(time.RFC3339, expiresAtStr)
+		if err != nil || time.Now().After(expiresAt) {
+			http.Error(w, "session expired", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), userIDKey, userID)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (s *apiServer) meHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(userIDKey).(string)
+	if !ok || userID == "" {
+		http.Error(w, "not authenticated", http.StatusUnauthorized)
+		return
+	}
+	w.Write([]byte("you are: " + userID))
 }

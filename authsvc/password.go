@@ -1,11 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"strings"
-	"crypto/rand"
-	"crypto/subtle"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -18,7 +18,7 @@ func hashPassword(password string) (string, error) {
 	hash := argon2.IDKey([]byte(password), salt, 3, 65536, 2, 32)
 	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
 	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
-	encoded := fmt.Sprintf("$argon2id$v=19$m=65536,t=3,p=2$%s$%s", b64Salt, b64Hash) 
+	encoded := fmt.Sprintf("$argon2id$v=19$m=65536,t=3,p=2$%s$%s", b64Salt, b64Hash)
 	return encoded, nil
 }
 

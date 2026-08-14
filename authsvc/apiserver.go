@@ -7,12 +7,13 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
 type apiServer struct {
-	db *sql.DB
+	db        *sql.DB
 	dummyHash string
 }
 
@@ -28,7 +29,7 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hashed, err := hashPassword(req.Password)
-	if err!= nil{
+	if err != nil {
 		http.Error(w, "Failed to hash password", http.StatusInternalServerError)
 		return
 	}
@@ -41,7 +42,7 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to register user", http.StatusInternalServerError)
 		return
 	}
-	
+
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("registered: " + req.Email))
 }
@@ -60,10 +61,10 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	var id, storedHash string
 	err := s.db.QueryRow("SELECT id, password_hash FROM users WHERE email = ?",
-	 req.Email).Scan(&id, &storedHash)
-	 
+		req.Email).Scan(&id, &storedHash)
+
 	if errors.Is(err, sql.ErrNoRows) {
-		
+
 		_, _ = verifyPassword(s.dummyHash, req.Password)
 
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
@@ -76,8 +77,7 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	ok, err := verifyPassword(storedHash, req.Password)
 
-	
-	if  err != nil {
+	if err != nil {
 		log.Printf("verify failed for user %s: %v", id, err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -86,6 +86,33 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
+
+	token, err := generateSessionToken()
+	if err != nil {
+		http.Error(w, "Failed to generate session token", http.StatusInternalServerError)
+		return
+	}
+	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAtStr := expiresAt.UTC().Format(time.RFC3339)
+
+	_, err = s.db.Exec(
+		"INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+		hashToken(token), id, expiresAtStr)
+	if err != nil {
+		http.Error(w, "Failed to create session", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    token,
+		Expires:  expiresAt,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("logged in: " + req.Email))
 }

@@ -23,11 +23,11 @@ func withLogging(next http.Handler) http.Handler {
 
 func main() {
 
-		db, err := openDatabase("adaptive_auth.db")
+	db, err := openDatabase("adaptive_auth.db")
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
-		defer db.Close()
+	defer db.Close()
 	dummy, err := hashPassword("a-password-nobody-will-ever-use")
 	if err != nil {
 		log.Fatalf("Failed to hash dummy password: %v", err)

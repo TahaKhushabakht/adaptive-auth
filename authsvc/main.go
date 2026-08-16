@@ -1,6 +1,7 @@
 package main
 
 import (
+	"golang.org/x/time/rate"
 	"log"
 	"net/http"
 	"time"
@@ -32,13 +33,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to hash dummy password: %v", err)
 	}
+	loginLimiter := newIPRateLimiter(rate.Limit(0.1), 5)
+	registrationLimiter := newIPRateLimiter(rate.Limit(1), 5)
 	srv := &apiServer{db: db, dummyHash: dummy}
-
 	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", healthzHandler)
-	mux.HandleFunc("POST /register", srv.registerHandler)
-	mux.HandleFunc("POST /login", srv.loginHandler)
+	mux.Handle("/healthz", http.HandlerFunc(healthzHandler))
+	mux.Handle("POST /register", rateLimit(registrationLimiter, http.HandlerFunc(srv.registerHandler)))
+	mux.Handle("POST /login", rateLimit(loginLimiter, http.HandlerFunc(srv.loginHandler)))
 	mux.Handle("GET /me", srv.requireAuth(http.HandlerFunc(srv.meHandler)))
+
 	if err := http.ListenAndServe(":8081", withLogging(mux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}

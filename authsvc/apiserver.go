@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -155,4 +156,20 @@ func (s *apiServer) meHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte("you are: " + userID))
+}
+
+func rateLimit(limiter *ipRateLimiter, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			http.Error(w, "internal server error", http.StatusInternalServerError)
+			return
+		}
+		l := limiter.getLimiter(ip)
+		if !l.Allow() {
+			http.Error(w, "too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

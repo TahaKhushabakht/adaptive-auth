@@ -15,6 +15,10 @@ riskml/.ipynb_checkpoints/
 *.sqlite3
 .env
 
+# GeoLite2 database — large binary asset, downloaded manually per-machine.
+# See PROJECT_NOTES.md for the setup steps (MaxMind account + license key required).
+authsvc/geoip/
+
 # Editor
 .vscode/
 .idea/

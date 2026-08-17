@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -52,6 +51,12 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 
+	ip, err := clientIP(r)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
@@ -62,13 +67,13 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var id, storedHash string
-	err := s.db.QueryRow("SELECT id, password_hash FROM users WHERE email = ?",
+	err = s.db.QueryRow("SELECT id, password_hash FROM users WHERE email = ?",
 		req.Email).Scan(&id, &storedHash)
 
 	if errors.Is(err, sql.ErrNoRows) {
 
 		_, _ = verifyPassword(s.dummyHash, req.Password)
-
+		s.recordLoginEvent("", req.Email, false, ip, r.UserAgent())
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
@@ -86,6 +91,7 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		s.recordLoginEvent(id, req.Email, false, ip, r.UserAgent())
 		return
 	}
 
@@ -115,8 +121,11 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
+	
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("logged in: " + req.Email))
+	s.recordLoginEvent(id, req.Email, true, ip, r.UserAgent())
 }
 
 type contextKey string
@@ -160,7 +169,7 @@ func (s *apiServer) meHandler(w http.ResponseWriter, r *http.Request) {
 
 func rateLimit(limiter *ipRateLimiter, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		ip, err := clientIP(r)
 		if err != nil {
 			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
@@ -172,4 +181,19 @@ func rateLimit(limiter *ipRateLimiter, next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, userAgent string) {
+	var userIDArg any = nil
+	if userID != "" {
+		userIDArg = userID
+	}
+
+	_, err := s.db.Exec(
+		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)",
+		uuid.NewString(), userIDArg, email, success, ip, userAgent,
+	)
+	if err != nil {
+		log.Printf("failed to record login event %v", err)
+	}
 }

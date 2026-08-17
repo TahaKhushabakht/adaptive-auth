@@ -1,8 +1,11 @@
 package main
 
 import (
-	"golang.org/x/time/rate"
+	"net"
+	"net/http"
 	"sync"
+
+	"golang.org/x/time/rate"
 )
 
 type ipRateLimiter struct {
@@ -30,4 +33,9 @@ func (i *ipRateLimiter) getLimiter(ip string) *rate.Limiter {
 		i.limiters[ip] = limiter
 	}
 	return limiter
+}
+
+func clientIP(r *http.Request) (string, error) {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	return ip, err
 }

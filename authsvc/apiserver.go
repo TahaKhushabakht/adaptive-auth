@@ -6,16 +6,19 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/oschwald/geoip2-golang"
 )
 
 type apiServer struct {
 	db        *sql.DB
 	dummyHash string
+	geoDB     *geoip2.Reader
 }
 
 func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -193,9 +196,34 @@ func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, use
 		userIDArg = userID
 	}
 
-	_, err := s.db.Exec(
-		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		uuid.NewString(), userIDArg, email, success, ip, userAgent, deviceID,
+	parsedIP := net.ParseIP(ip)
+	record, err := s.geoDB.City(parsedIP)
+	if err != nil {
+		log.Printf("geo lookup failed for %s: %v", ip, err)
+	}
+
+	country := record.Country.Names["en"]
+	city := record.City.Names["en"]
+	lat := record.Location.Latitude
+	lon := record.Location.Longitude
+
+	var countryArg, cityArg any = nil, nil
+	if country != "" {
+		countryArg = country
+	}
+	if city != "" {
+		cityArg = city
+	}
+
+	var latArg, lonArg any = nil, nil
+	if lat != 0 || lon != 0 {
+		latArg = lat
+		lonArg = lon
+	}
+
+	_, err = s.db.Exec(
+		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent, device_id, country, city, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		uuid.NewString(), userIDArg, email, success, ip, userAgent, deviceID, countryArg, cityArg, latArg, lonArg,
 	)
 	if err != nil {
 		log.Printf("failed to record login event %v", err)

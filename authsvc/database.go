@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS login_events (
 	user_agent TEXT,
 	device_id TEXT NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	country   TEXT,
+	city      TEXT,
+	latitude  REAL,
+	longitude REAL,
 	FOREIGN KEY (user_id) REFERENCES users(id)
 	)`
 

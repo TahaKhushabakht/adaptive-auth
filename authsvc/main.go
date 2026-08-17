@@ -5,6 +5,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/oschwald/geoip2-golang"
 )
 
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
@@ -29,13 +31,18 @@ func main() {
 		log.Fatalf("Failed to open database: %v", err)
 	}
 	defer db.Close()
+	geoDB, err := geoip2.Open("geoip/GeoLite2-City.mmdb")
+	if err != nil {
+		log.Fatalf("failed to open GeoIP database: %v", err)
+	}
+	defer geoDB.Close()
 	dummy, err := hashPassword("a-password-nobody-will-ever-use")
 	if err != nil {
 		log.Fatalf("Failed to hash dummy password: %v", err)
 	}
 	loginLimiter := newIPRateLimiter(rate.Limit(0.1), 5)
 	registrationLimiter := newIPRateLimiter(rate.Limit(1), 5)
-	srv := &apiServer{db: db, dummyHash: dummy}
+	srv := &apiServer{db: db, dummyHash: dummy, geoDB: geoDB}
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", http.HandlerFunc(healthzHandler))
 	mux.Handle("POST /register", rateLimit(registrationLimiter, http.HandlerFunc(srv.registerHandler)))

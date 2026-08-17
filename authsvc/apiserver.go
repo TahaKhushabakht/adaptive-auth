@@ -57,6 +57,12 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	deviceID, err := getOrSetDeviceID(w, r)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
@@ -73,7 +79,7 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, sql.ErrNoRows) {
 
 		_, _ = verifyPassword(s.dummyHash, req.Password)
-		s.recordLoginEvent("", req.Email, false, ip, r.UserAgent())
+		s.recordLoginEvent("", req.Email, false, ip, r.UserAgent(), deviceID)
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
@@ -91,11 +97,11 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
-		s.recordLoginEvent(id, req.Email, false, ip, r.UserAgent())
+		s.recordLoginEvent(id, req.Email, false, ip, r.UserAgent(), deviceID)
 		return
 	}
 
-	token, err := generateSessionToken()
+	token, err := generateRandomToken()
 	if err != nil {
 		http.Error(w, "Failed to generate session token", http.StatusInternalServerError)
 		return
@@ -121,11 +127,9 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 	})
 
-	
-
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("logged in: " + req.Email))
-	s.recordLoginEvent(id, req.Email, true, ip, r.UserAgent())
+	s.recordLoginEvent(id, req.Email, true, ip, r.UserAgent(), deviceID)
 }
 
 type contextKey string
@@ -183,17 +187,38 @@ func rateLimit(limiter *ipRateLimiter, next http.Handler) http.Handler {
 	})
 }
 
-func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, userAgent string) {
+func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, userAgent string, deviceID string) {
 	var userIDArg any = nil
 	if userID != "" {
 		userIDArg = userID
 	}
 
 	_, err := s.db.Exec(
-		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?)",
-		uuid.NewString(), userIDArg, email, success, ip, userAgent,
+		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent, device_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		uuid.NewString(), userIDArg, email, success, ip, userAgent, deviceID,
 	)
 	if err != nil {
 		log.Printf("failed to record login event %v", err)
 	}
+}
+
+func getOrSetDeviceID(w http.ResponseWriter, r *http.Request) (string, error) {
+	if cookie, err := r.Cookie("device_id"); err == nil {
+		return cookie.Value, nil
+	}
+	deviceID, err := generateRandomToken()
+	if err != nil {
+		return "", err
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "device_id",
+		Value:    deviceID,
+		Expires:  time.Now().Add(365 * 24 * time.Hour),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+	return deviceID, nil
 }

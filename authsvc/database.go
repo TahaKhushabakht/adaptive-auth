@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS login_events (
 	success INTEGER NOT NULL,
 	ip_address TEXT NOT NULL,
 	user_agent TEXT,
+	device_id TEXT NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (user_id) REFERENCES users(id)
 	)`

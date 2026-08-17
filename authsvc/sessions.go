@@ -8,13 +8,12 @@ import (
 	"fmt"
 )
 
-func generateSessionToken() (string, error) {
-	sessionToken := make([]byte, 32)
-	if _, err := rand.Read(sessionToken); err != nil {
-		return "", fmt.Errorf("failed to generate session token: %v", err)
+func generateRandomToken() (string, error) {
+	token := make([]byte, 32)
+	if _, err := rand.Read(token); err != nil {
+		return "", fmt.Errorf("failed to generate random token: %v", err)
 	}
-	b64SessionToken := base64.RawURLEncoding.EncodeToString(sessionToken)
-	return b64SessionToken, nil
+	return base64.RawURLEncoding.EncodeToString(token), nil
 }
 
 func hashToken(token string) string {

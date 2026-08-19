@@ -214,17 +214,20 @@ func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, use
 		userIDArg = userID
 	}
 
+	var country, city string
+	var lat, lon float64
+
 	parsedIP := net.ParseIP(ip)
-	record, err := s.geoDB.City(parsedIP)
-	if err != nil {
+	if parsedIP == nil {
+		log.Printf("could not parse IP for geo lookup: %q", ip)
+	} else if record, err := s.geoDB.City(parsedIP); err != nil {
 		log.Printf("geo lookup failed for %s: %v", ip, err)
+	} else {
+		country = record.Country.Names["en"]
+		city = record.City.Names["en"]
+		lat = record.Location.Latitude
+		lon = record.Location.Longitude
 	}
-
-	country := record.Country.Names["en"]
-	city := record.City.Names["en"]
-	lat := record.Location.Latitude
-	lon := record.Location.Longitude
-
 	var countryArg, cityArg any = nil, nil
 	if country != "" {
 		countryArg = country
@@ -239,7 +242,7 @@ func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, use
 		lonArg = lon
 	}
 
-	_, err = s.db.Exec(
+	_, err := s.db.Exec(
 		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent, device_id, country, city, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		uuid.NewString(), userIDArg, email, success, ip, userAgent, deviceID, countryArg, cityArg, latArg, lonArg,
 	)

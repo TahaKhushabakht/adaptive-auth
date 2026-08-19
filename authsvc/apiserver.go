@@ -28,6 +28,8 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, "Email and password are required", http.StatusBadRequest)
 		return
@@ -70,6 +72,8 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, "Email and password are required", http.StatusBadRequest)
 		return

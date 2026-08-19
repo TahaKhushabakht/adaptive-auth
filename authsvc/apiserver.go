@@ -23,6 +23,9 @@ type apiServer struct {
 
 func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
+
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	id := uuid.NewString()
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
@@ -32,6 +35,10 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, "Email and password are required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Password) < 8 || len(req.Password) > 128 {
+		http.Error(w, "Password must be between 8 and 128 characters", http.StatusBadRequest)
 		return
 	}
 	hashed, err := hashPassword(req.Password)
@@ -56,6 +63,8 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var req loginRequest
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+
 	ip, err := clientIP(r)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -76,6 +85,11 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if req.Email == "" || req.Password == "" {
 		http.Error(w, "Email and password are required", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Password) > 128 {
+		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
 

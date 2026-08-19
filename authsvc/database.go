@@ -37,11 +37,18 @@ CREATE TABLE IF NOT EXISTS login_events (
 	city      TEXT,
 	latitude  REAL,
 	longitude REAL,
+	event_type TEXT NOT NULL DEFAULT 'login',
 	FOREIGN KEY (user_id) REFERENCES users(id)
 	)`
 
+const createLoginEventsIndexes = `
+	CREATE INDEX IF NOT EXISTS idx_login_events_user ON login_events(user_id, event_type, created_at);
+	CREATE INDEX IF NOT EXISTS idx_login_events_ip   ON login_events(ip_address, event_type, created_at);
+	`
+
 func openDatabase(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", path)
+	dsn := path + "?_journal_mode=WAL&_busy_timeout=5000&_foreign_keys=on"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +64,8 @@ func openDatabase(path string) (*sql.DB, error) {
 	if _, err := db.Exec(createLoginEventsTable); err != nil {
 		return nil, err
 	}
-
+	if _, err := db.Exec(createLoginEventsIndexes); err != nil {
+		return nil, err
+	}
 	return db, nil
 }

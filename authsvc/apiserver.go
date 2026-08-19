@@ -24,6 +24,17 @@ type apiServer struct {
 func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 	var req registerRequest
 
+	ip, err := clientIP(r)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	deviceID, err := getOrSetDeviceID(w, r)
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 
 	id := uuid.NewString()
@@ -49,6 +60,7 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = s.db.Exec("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", id, req.Email, hashed)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			s.recordAuthEvent("register", "", req.Email, false, ip, r.UserAgent(), deviceID)
 			http.Error(w, "Email already registered", http.StatusConflict)
 			return
 		}
@@ -58,6 +70,7 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("registered: " + req.Email))
+	s.recordAuthEvent("register", id, req.Email, true, ip, r.UserAgent(), deviceID)
 }
 
 func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +113,7 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, sql.ErrNoRows) {
 
 		_, _ = verifyPassword(s.dummyHash, req.Password)
-		s.recordLoginEvent("", req.Email, false, ip, r.UserAgent(), deviceID)
+		s.recordAuthEvent("login", "", req.Email, false, ip, r.UserAgent(), deviceID)
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
 		return
 	}
@@ -118,7 +131,7 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
-		s.recordLoginEvent(id, req.Email, false, ip, r.UserAgent(), deviceID)
+		s.recordAuthEvent("login", id, req.Email, false, ip, r.UserAgent(), deviceID)
 		return
 	}
 
@@ -150,7 +163,7 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("logged in: " + req.Email))
-	s.recordLoginEvent(id, req.Email, true, ip, r.UserAgent(), deviceID)
+	s.recordAuthEvent("login", id, req.Email, true, ip, r.UserAgent(), deviceID)
 }
 
 type contextKey string
@@ -208,7 +221,7 @@ func rateLimit(limiter *ipRateLimiter, next http.Handler) http.Handler {
 	})
 }
 
-func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, userAgent string, deviceID string) {
+func (s *apiServer) recordAuthEvent(eventType, userID, email string, success bool, ip, userAgent string, deviceID string) {
 	var userIDArg any = nil
 	if userID != "" {
 		userIDArg = userID
@@ -243,8 +256,8 @@ func (s *apiServer) recordLoginEvent(userID, email string, success bool, ip, use
 	}
 
 	_, err := s.db.Exec(
-		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent, device_id, country, city, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		uuid.NewString(), userIDArg, email, success, ip, userAgent, deviceID, countryArg, cityArg, latArg, lonArg,
+		"INSERT INTO login_events (id, user_id, email, success, ip_address, user_agent, device_id, country, city, latitude, longitude, event_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		uuid.NewString(), userIDArg, email, success, ip, userAgent, deviceID, countryArg, cityArg, latArg, lonArg, eventType,
 	)
 	if err != nil {
 		log.Printf("failed to record login event %v", err)

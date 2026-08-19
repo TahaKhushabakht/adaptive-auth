@@ -30,6 +30,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
+	n, err := purgeExpiredSessions(db)
+	if err != nil {
+		log.Printf("failed to purge expired sessions: %v", err)
+	} else {
+		log.Printf("purged %d expired sessions", n)
+	}
 	defer db.Close()
 	geoDB, err := geoip2.Open("geoip/GeoLite2-City.mmdb")
 	if err != nil {
@@ -48,6 +54,7 @@ func main() {
 	mux.Handle("POST /register", rateLimit(registrationLimiter, http.HandlerFunc(srv.registerHandler)))
 	mux.Handle("POST /login", rateLimit(loginLimiter, http.HandlerFunc(srv.loginHandler)))
 	mux.Handle("GET /me", srv.requireAuth(http.HandlerFunc(srv.meHandler)))
+	mux.Handle("POST /logout", srv.requireAuth(http.HandlerFunc(srv.logoutHandler)))
 
 	if err := http.ListenAndServe(":8081", withLogging(mux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)

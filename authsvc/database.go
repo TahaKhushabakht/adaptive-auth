@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -68,4 +69,13 @@ func openDatabase(path string) (*sql.DB, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func purgeExpiredSessions(db *sql.DB) (int64, error) {
+	now := time.Now().UTC().Format(time.RFC3339)
+	result, err := db.Exec("DELETE FROM sessions WHERE expires_at < ?", now)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

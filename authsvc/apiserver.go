@@ -60,8 +60,8 @@ func (s *apiServer) registerHandler(w http.ResponseWriter, r *http.Request) {
 	_, err = s.db.Exec("INSERT INTO users (id, email, password_hash) VALUES (?, ?, ?)", id, req.Email, hashed)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
-			s.recordAuthEvent("register", "", req.Email, false, ip, r.UserAgent(), deviceID)
 			http.Error(w, "Email already registered", http.StatusConflict)
+			s.recordAuthEvent("register", "", req.Email, false, ip, r.UserAgent(), deviceID)
 			return
 		}
 		http.Error(w, "Failed to register user", http.StatusInternalServerError)
@@ -113,8 +113,8 @@ func (s *apiServer) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, sql.ErrNoRows) {
 
 		_, _ = verifyPassword(s.dummyHash, req.Password)
-		s.recordAuthEvent("login", "", req.Email, false, ip, r.UserAgent(), deviceID)
 		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		s.recordAuthEvent("login", "", req.Email, false, ip, r.UserAgent(), deviceID)
 		return
 	}
 	if err != nil {
@@ -283,4 +283,31 @@ func getOrSetDeviceID(w http.ResponseWriter, r *http.Request) (string, error) {
 		Path:     "/",
 	})
 	return deviceID, nil
+}
+func (s *apiServer) logoutHandler(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie("session_token")
+	if err != nil {
+		http.Error(w, "not authenticated", http.StatusUnauthorized)
+		return
+	}
+
+	_, err = s.db.Exec("DELETE FROM sessions WHERE token_hash = ?", hashToken(cookie.Value))
+	if err != nil {
+		http.Error(w, "failed to log out", http.StatusInternalServerError)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    "",
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("logged out"))
 }

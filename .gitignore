@@ -11,6 +11,9 @@ riskml/.ipynb_checkpoints/
 
 # Data / secrets / local db
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 *.sqlite
 *.sqlite3
 .env
@@ -25,3 +28,5 @@ authsvc/geoip/
 
 # Private working notes — never commit
 PROJECT_NOTES.md
+REVIEW.md
+PHASE3_PLAN.md

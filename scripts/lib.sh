@@ -4,7 +4,7 @@
 # Sourced by the other scripts in this directory; not meant to be run directly.
 
 HOST="${HOST:-http://localhost:8081}"
-PASSWORD="${PASSWORD:-hunter2}"
+PASSWORD="${PASSWORD:-hunter22}"
 
 PASS_COUNT=0
 FAIL_COUNT=0

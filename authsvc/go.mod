@@ -1,4 +1,4 @@
-module github.com/tkhush/adaptive-auth/authsvc
+module github.com/TahaKhushabakht/adaptive-auth/authsvc
 
 go 1.26.5
 

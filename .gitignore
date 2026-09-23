@@ -31,3 +31,6 @@ PROJECT_NOTES.md
 REVIEW.md
 PHASE3_PLAN.md
 ROADMAP.md
+
+# Claude Code local settings — machine-specific, not shared
+.claude/settings.local.json
